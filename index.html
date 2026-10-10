@@ -91,7 +91,7 @@ button.p{background:var(--acc);border-color:var(--acc);color:#fff}button:disable
 <div class="two" style="margin-top:12px"><div class="say w" id="sw"></div><div class="say y" id="sy"></div></div>
 <div class="card"><div class="lbl">Línea de tiempo · cada cuadro = 1 unidad · abajo, la cola donde corrió</div><div id="gantt"></div></div>
 <div class="card" id="sumc" hidden><div class="lbl">Resumen final</div><div id="sum"></div></div>
-<div class="card"><div class="lbl">Historial</div><div id="log"></div></div>
+
 </div></div>
 <div id="nav"><button id="prev">‹</button><div id="prog"><input type="range" id="sl" min="0" value="0" aria-label="Paso"><div id="cnt"></div></div><button id="next">Siguiente ›</button></div>
 <script>
@@ -110,7 +110,7 @@ function simulate(c){
  while(P.some(p=>p.end==null)&&t<400){
   const m=[],fl=[],tg={};
   P.filter(p=>p.a==t).forEach(p=>{Q[0].push(p);p.lvl=0;p.wait=0;fl.push(p.id);tg[p.id]=['new','● Llega'];
-   m.push({k:'in',x:`Llega P${p.id} (ráfaga ${p.b}). Todo proceso nuevo entra al final de Q0.`})});
+   m.push({k:'in',x:`Llega P${p.id} (ráfaga ${p.b}) justo en t = ${t}. Todo proceso nuevo entra al final de Q0.`})});
   if(c.age>0)for(let l=1;l<3;l++)for(const p of [...Q[l]])if(p.wait>=c.age){
    Q[l].splice(Q[l].indexOf(p),1);Q[l-1].push(p);p.lvl=l-1;p.wait=0;fl.push(p.id);tg[p.id]=['up','⬆ Subió a Q'+(l-1)];
    m.push({k:'up',x:`⬆ AGING: P${p.id} lleva ${c.age} unidades esperando en Q${l} sin CPU. Sube a Q${l-1} para no quedarse sin atención (evita inanición).`})}
@@ -149,7 +149,7 @@ const chip=(id,f,o)=>{const p=P[id-1],t=o.tag&&f.tg&&f.tg[id];
 const mini=(p,tx,tg)=>`<div class="pw"><span class="tag ${tg}" style="animation:none">${tx}</span><div class="pc" style="--c:${COL[(p.id-1)%8]}"><div class="pn">P${p.id}</div><div class="pr">ráfaga ${p.b}</div></div></div>`;
 function render(){
  const f=F[i],last=F.length-1,E=last,r=f.ran,ks=f.m.map(x=>x.k);
- $('tt').textContent=i==0?'t = 0':`t = ${f.t0} → ${f.t1}`;
+ $('tt').textContent=`t = ${f.t1}`;
  $('hd').textContent=i==0?'Estado inicial':r==null?'CPU libre':HL[PR.find(k=>ks.includes(k))];
  $('sl').max=last;$('sl').value=i;$('cnt').textContent=`Paso ${i} de ${last}`;
  $('first').disabled=$('prev').disabled=i==0;$('next').disabled=i==last;
@@ -170,7 +170,7 @@ function render(){
   b+=on&&q.ran?`<div class="band b${q.ranL}">Q${q.ranL}</div>`:'<div class="band"></div>';a+=`<span>${k%2==0?k:''}</span>`}
  P.forEach(p=>{if(p.a<E)ar+=`<span style="grid-column:${p.a+1};background:${COL[(p.id-1)%8]}" title="P${p.id} llega en t=${p.a}">${p.id}</span>`});
  $('gantt').innerHTML=`<div class="gw" style="--n:${E}"><div class="gt1" style="--n:${E}">${g}</div><div class="gt1" style="--n:${E}">${b}</div></div><div class="gt1 ax" style="--n:${E}">${a}</div><div class="gt1 arr" style="--n:${E}">${ar}</div><div class="em">Círculos = llegada de cada proceso</div>`;
- $('log').innerHTML=F.slice(0,i+1).map((q,k)=>`<div class="${k==i?'cur':''}">${k?`[t=${q.t0}→${q.t1}] `:''}${q.m.map(x=>x.x).join(' ')}</div>`).join('');$('log').scrollTop=1e5;
+ 
  const fin=i==last&&i>0;$('sumc').hidden=!fin;
  if(fin){let s=0,w=0,rs=0;const rows=P.map(p=>{const rt=p.end-p.a,wt=rt-p.b,re=p.st-p.a;s+=rt;w+=wt;rs+=re;return `<tr><td><b style="color:${COL[(p.id-1)%8]}">P${p.id}</b></td><td>${p.a}</td><td>${p.b}</td><td>${p.end}</td><td>${rt}</td><td>${wt}</td><td>${re}</td></tr>`}).join(''),n=P.length,busy=F.filter(q=>q.ran).length;
   const kp=(v,l)=>`<div class="kpi"><b>${v}</b><small>${l}</small></div>`;
@@ -197,4 +197,3 @@ $('p1').onclick=()=>load(DEF);$('p2').onclick=()=>load(AGE);
 $('leg').innerHTML='<span>Cuadritos claros = ráfaga que falta</span><span>Teclas ← →</span>';
 load(DEF);
 </script></body></html>
-
