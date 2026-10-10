@@ -1,1 +1,200 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulador MLFQ paso a paso</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+:root{--bg:#f8fafc;--card:#fff;--tx:#0f172a;--mu:#64748b;--ln:#e2e8f0;--soft:#f1f5f9;--acc:#2563eb;--q0:#0f766e;--q0t:#fff;--q1:#2dd4bf;--q1t:#042f2e;--q2:#ccfbf1;--q2t:#042f2e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#020617;--card:#0f172a;--tx:#f1f5f9;--mu:#94a3b8;--ln:#1e293b;--soft:#0b1426;--acc:#60a5fa}}
+:root[data-theme="dark"]{--bg:#020617;--card:#0f172a;--tx:#f1f5f9;--mu:#94a3b8;--ln:#1e293b;--soft:#0b1426;--acc:#60a5fa}
+*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{font:15px/1.45 'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--tx);display:flex;flex-direction:column;overflow:hidden}
+#stage{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 14px 24px;-webkit-overflow-scrolling:touch}
+.wrap{max-width:980px;margin:0 auto}
+@keyframes pop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.06)}100%{transform:scale(1);opacity:1}}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+h1{font-size:clamp(26px,6vw,40px);font-weight:800;line-height:1.1}
+h2{font-size:clamp(18px,4.2vw,26px);font-weight:800;line-height:1.15}
+.kick{display:block;font-size:11px;font-weight:800;color:var(--acc);margin-bottom:6px}
+.sub{color:var(--mu);font-size:14px;margin:6px 0 14px}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:16px;padding:14px;margin-bottom:12px}
+.lbl{font-size:11px;font-weight:800;color:var(--mu);margin-bottom:8px}
+.em,em{color:var(--mu);font-size:12.5px;font-style:italic}
+summary{cursor:pointer;font-weight:800}
+table{border-collapse:collapse;width:100%;font-size:13px}td,th{padding:5px 6px;text-align:left;border-bottom:1px solid var(--ln)}
+input{width:70px;padding:8px;border-radius:10px;border:1px solid var(--ln);background:var(--soft);color:var(--tx);font:700 14px inherit}
+button,select{font:700 13px 'Plus Jakarta Sans',sans-serif;border:1px solid var(--ln);background:var(--soft);color:var(--tx);border-radius:12px;padding:10px 14px;cursor:pointer}
+button.p{background:var(--acc);border-color:var(--acc);color:#fff}button:disabled{opacity:.35;cursor:default}
+:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.bar label{font-size:12px;font-weight:700;color:var(--mu)}
+#nav{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--ln);background:var(--card)}
+#nav button{padding:11px 16px;border:0}#prev{background:var(--soft)}#next{background:var(--acc);color:#fff}
+#prog{flex:1;min-width:0}#sl{width:100%;accent-color:var(--acc)}
+#cnt{font-size:11px;color:var(--mu);text-align:center;font-weight:700}
+.stephead{display:flex;align-items:center;gap:12px;margin:4px 0 12px;flex-wrap:wrap}
+.tbadge{background:var(--acc);color:#fff;font-weight:800;font-size:18px;border-radius:12px;padding:7px 14px;white-space:nowrap}
+.two{display:grid;gap:10px;margin-bottom:12px}@media(min-width:700px){.two{grid-template-columns:1fr 1fr}}
+.say{border-radius:14px;padding:12px 14px;font-size:14px}.say p{margin-top:5px}
+.say .h{display:block;font-size:11px;font-weight:800}
+.say.w{background:#eff6ff;color:#1e3a8a;border:1px solid #bfdbfe}.say.y{background:#fffbeb;color:#78350f;border:1px solid #fde68a}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .say.w{background:#10213f;color:#bfdbfe;border-color:#1e3a8a}:root:not([data-theme="light"]) .say.y{background:#2a2108;color:#fde68a;border-color:#713f12}}
+:root[data-theme="dark"] .say.w{background:#10213f;color:#bfdbfe;border-color:#1e3a8a}:root[data-theme="dark"] .say.y{background:#2a2108;color:#fde68a;border-color:#713f12}
+.sgrid{display:grid;gap:12px}@media(min-width:760px){.sgrid{grid-template-columns:240px 1fr}.sgrid .done{grid-column:1/3}}
+.sgrid .card{margin:0}.cpubox{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-height:130px}
+.qm{font-size:11px;font-weight:700;color:var(--mu);display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.qm i{width:16px;height:8px;border-radius:2px;background:var(--ln)}.qm i.on{background:var(--acc)}
+.lane{display:flex;align-items:center;gap:10px;border:1.5px solid var(--ln);border-radius:12px;padding:8px 10px;margin-bottom:8px;background:var(--soft);min-height:84px}
+.lane.act{border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 18%,transparent)}
+.ll{min-width:74px}.ll b{display:inline-block;border-radius:8px;padding:3px 9px;font-size:13px}.ll small{display:block;font-size:10px;color:var(--mu);margin-top:3px;font-weight:600}
+.l0 .ll b{background:var(--q0);color:var(--q0t)}.l1 .ll b{background:var(--q1);color:var(--q1t)}.l2 .ll b{background:var(--q2);color:var(--q2t)}
+.lq{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;flex:1}
+.pw{display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+.tag{font-size:10px;font-weight:800;border-radius:99px;padding:2px 8px;animation:pop .45s ease both;white-space:nowrap}
+.tag.new{background:#dbeafe;color:#1d4ed8}.tag.down{background:#fef3c7;color:#92400e}.tag.up{background:#d1fae5;color:#065f46}
+.tag.pre{background:#fee2e2;color:#b91c1c}.tag.fin{background:#dcfce7;color:#166534}.tagsp{height:18px}
+.pc{background:var(--c);color:#fff;border-radius:12px;padding:6px 10px;min-width:64px}.pc.fl{animation:pop .45s ease both}
+.pc.first{box-shadow:0 0 0 2px #facc15}
+.pn{font-weight:800;font-size:15px;line-height:1.1}.pr{font-size:10px;font-weight:700;opacity:.92;margin-top:3px}
+.sqs{display:flex;gap:2px;margin-top:5px;flex-wrap:wrap;max-width:140px}
+.sq{width:8px;height:8px;border-radius:2px;background:#fff}.sq.used{background:rgba(0,0,0,.28)}
+.pc.big{padding:10px 16px}.pc.big .pn{font-size:24px}.pc.big .sq{width:11px;height:11px}.pc.big .pr{font-size:12px}.pc.big .sqs{max-width:200px}
+@media(prefers-reduced-motion:reduce){.tag,.pc.fl,.gc{animation:none!important}}
+.gt1{display:grid;grid-template-columns:repeat(var(--n),1fr)}
+.gc{display:flex;align-items:center;justify-content:center;height:40px;color:#fff;font-weight:800;font-size:10px;border-right:1px solid rgba(2,6,23,.25);overflow:hidden}
+.gc.nw{animation:grow .4s ease both;transform-origin:left;outline:2px solid #ef4444;outline-offset:-2px}
+.gc.empty{background:var(--soft);border-right:1px dashed var(--ln)}
+.gc.idle{background:repeating-linear-gradient(45deg,var(--ln),var(--ln) 3px,transparent 3px,transparent 6px)}
+.gw{border-radius:10px;overflow:hidden;border:1px solid var(--ln)}
+.band{height:20px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.b0{background:var(--q0);color:var(--q0t)}.b1{background:var(--q1);color:var(--q1t)}.b2{background:var(--q2);color:var(--q2t)}
+.ax{font-size:9px;color:var(--mu);margin-top:3px}.ax span{text-align:right;padding-right:2px}
+.arr{margin-top:4px;min-height:18px}.arr span{width:16px;height:16px;border-radius:50%;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:8px 0 12px}
+.kpi{background:var(--soft);border:1px solid var(--ln);border-radius:14px;padding:10px;text-align:center}.kpi b{display:block;font-size:24px;font-weight:800}.kpi small{font-size:11px;color:var(--mu);font-weight:700}
+#log{max-height:170px;overflow:auto;font-size:12.5px;color:var(--mu)}#log .cur{color:var(--tx);font-weight:700}
+.k{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--mu);font-weight:600;margin-top:10px}
+</style></head><body>
+<div id="stage"><div class="wrap">
+<span class="kick">Sistemas operativos · Planificación del CPU</span><h1>Simulador MLFQ</h1>
+<p class="sub">Avanza una unidad de tiempo a la vez: mira quién entra al CPU, cómo baja su ráfaga y cuándo cambia de cola.</p>
+<details class="card" id="cfgd"><summary>Configurar procesos y colas</summary>
+<table id="pt" style="margin-top:8px"></table>
+<div class="bar" style="margin-top:10px"><button id="add">+ Proceso</button>
+<label>Quantum Q0 <input id="q0" type="number" min="1" max="9"></label><label>Quantum Q1 <input id="q1" type="number" min="1" max="12"></label>
+<label>Aging cada <input id="ag" type="number" min="0" max="30"> u.t. <span class="em">(0 = sin aging)</span></label></div>
+<div class="bar" style="margin-top:10px"><button class="p" id="apply">Aplicar y reiniciar</button><button id="p1">Escenario de la presentación</button><button id="p2">Ejemplo de inanición + aging</button></div></details>
+<div class="card bar"><button id="first">⏮ Inicio</button><button id="play">▶ Auto</button>
+<select id="sp" aria-label="Velocidad"><option value="1800">Lento</option><option value="1000" selected>Normal</option><option value="450">Rápido</option></select>
+<div class="k" id="leg" style="margin:0 0 0 auto"></div></div>
+<div class="stephead"><span class="tbadge" id="tt"></span><h2 id="hd"></h2></div>
+<div id="board"></div>
+<div class="two" style="margin-top:12px"><div class="say w" id="sw"></div><div class="say y" id="sy"></div></div>
+<div class="card"><div class="lbl">Línea de tiempo · cada cuadro = 1 unidad · abajo, la cola donde corrió</div><div id="gantt"></div></div>
+<div class="card" id="sumc" hidden><div class="lbl">Resumen final</div><div id="sum"></div></div>
+<div class="card"><div class="lbl">Historial</div><div id="log"></div></div>
+</div></div>
+<div id="nav"><button id="prev">‹</button><div id="prog"><input type="range" id="sl" min="0" value="0" aria-label="Paso"><div id="cnt"></div></div><button id="next">Siguiente ›</button></div>
+<script>
+const COL=['#3b82f6','#f97316','#22c55e','#ef4444','#a855f7','#ec4899','#14b8a6','#eab308'];
+const DEF={procs:[[0,6],[1,3],[2,10],[5,2],[9,3]],q0:2,q1:4,age:0};
+const AGE={procs:[[0,12],[1,2],[3,2],[5,2],[7,2],[9,2],[11,2],[13,2]],q0:2,q1:4,age:6};
+let cfg,F=[],P=[],i=0,timer=null;
+const $=id=>document.getElementById(id);
+
+function simulate(c){
+ P=c.procs.map((p,k)=>({id:k+1,a:p[0],b:p[1],rem:p[1],lvl:0,wait:0,st:null,end:null}));
+ const Q=[[],[],[]],QN=[c.q0,c.q1,1e9];let run=null,used=0,t=0;F=[];
+ const snap=(m,fl,ran,ranL,ranU)=>({t0:Math.max(t-1,0),t1:t,m,fl,ran,ranL,ranU,cpu:run?run.id:null,
+  q:Q.map(q=>q.map(p=>p.id)),rem:P.map(p=>p.rem),wait:P.map(p=>p.wait),end:P.map(p=>p.end)});
+ F.push(snap([{k:'in',x:'Estado inicial (t = 0). Aún no se ha ejecutado nada. Pulsa «Siguiente» para avanzar 1 unidad de tiempo.'}],[]));
+ while(P.some(p=>p.end==null)&&t<400){
+  const m=[],fl=[],tg={};
+  P.filter(p=>p.a==t).forEach(p=>{Q[0].push(p);p.lvl=0;p.wait=0;fl.push(p.id);tg[p.id]=['new','● Llega'];
+   m.push({k:'in',x:`Llega P${p.id} (ráfaga ${p.b}). Todo proceso nuevo entra al final de Q0.`})});
+  if(c.age>0)for(let l=1;l<3;l++)for(const p of [...Q[l]])if(p.wait>=c.age){
+   Q[l].splice(Q[l].indexOf(p),1);Q[l-1].push(p);p.lvl=l-1;p.wait=0;fl.push(p.id);tg[p.id]=['up','⬆ Subió a Q'+(l-1)];
+   m.push({k:'up',x:`⬆ AGING: P${p.id} lleva ${c.age} unidades esperando en Q${l} sin CPU. Sube a Q${l-1} para no quedarse sin atención (evita inanición).`})}
+  if(run){const hi=Q.findIndex(q=>q.length);
+   if(hi>=0&&hi<run.lvl){Q[run.lvl].unshift(run);fl.push(run.id);tg[run.id]=['pre','⚡ Expropiado'];
+    m.push({k:'pre',x:`⚡ EXPROPIACIÓN: hay un proceso en Q${hi}, que tiene más prioridad que Q${run.lvl}. P${run.id} pierde el CPU antes de acabar, vuelve al FRENTE de Q${run.lvl} con ${run.rem} pendientes y NO baja de cola (solo baja quien agota su quantum).`});run=null}}
+  if(!run){const l=Q.findIndex(q=>q.length);
+   if(l>=0){run=Q[l].shift();used=0;if(run.st==null)run.st=t;
+    m.push({k:'cpu1',x:`▶ El CPU está libre: se elige la cola con más prioridad que tenga procesos (Q${l}) y su primer proceso. Entra P${run.id}`+(l<2?` con quantum ${QN[l]}.`:' (Q2 es FCFS: sin quantum, corre hasta terminar).')})}}
+  else m.push({k:'cpu1',x:`P${run.id} sigue en el CPU: aún no termina ni agota su quantum.`});
+  let ran=null,ranL=null,ranU=0;
+  if(run){run.rem--;used++;run.wait=0;ran=run.id;ranL=run.lvl;ranU=used;
+   m.push({k:'run',x:`⏱ P${run.id} ejecuta 1 unidad. Ráfaga restante: ${run.rem}`+(run.lvl<2?` · quantum usado: ${used} de ${QN[run.lvl]}.`:'.')})}
+  else m.push({k:'in',x:'CPU ociosa: no hay procesos listos en este momento.'});
+  Q.forEach(q=>q.forEach(p=>p.wait++));
+  t++;
+  if(run){
+   if(run.rem==0){run.end=t;tg[run.id]=['fin','✔ Terminó'];m.push({k:'end',x:`✔ P${run.id} TERMINA en t = ${t}. Retorno = ${t}−${run.a} = ${t-run.a}; espera = ${t-run.a}−${run.b} = ${t-run.a-run.b}.`});run=null}
+   else if(run.lvl<2&&used>=QN[run.lvl]){const f=run.lvl;run.lvl++;run.wait=0;Q[run.lvl].push(run);fl.push(run.id);tg[run.id]=['down','↓ Bajó a Q'+run.lvl];
+    m.push({k:'down',x:`⬇ P${run.id} agotó su quantum (${QN[f]}) sin terminar: le quedan ${run.rem}. Baja a Q${run.lvl}.`});run=null}}
+  {const z=snap(m,fl,ran,ranL,ranU);z.tg=tg;F.push(z)}
+ }
+}
+
+const PR=['pre','up','end','down','in','cpu1','run'],
+HL={pre:'⚡ Expropiación',up:'⬆ Sube por aging',end:'✔ Un proceso termina',down:'⬇ Baja de cola',in:'Llega un proceso',cpu1:'Entra al CPU',run:'El CPU trabaja 1 unidad'},
+WHY={pre:'Una cola superior siempre le quita el CPU a una inferior, sin esperar a que acabe su quantum. Quien es expropiado no baja de cola.',
+down:'Agotar el quantum sin terminar marca al proceso como largo: baja una cola (más quantum, menos prioridad).',
+up:'Aging: esperar demasiado sube la prioridad, así ningún proceso se queda sin CPU para siempre.',
+end:'Completó su ráfaga: sale del sistema y ya no ocupa ninguna cola.',
+in:'Todo proceso nuevo entra al final de Q0. Si en el CPU corre algo de Q0, no lo expropia: espera su turno.',
+cpu1:'El CPU atiende siempre la cola de mayor prioridad que tenga procesos, y dentro de ella al primero de la fila.'};
+const sqs=(b,r)=>{let h='';for(let k=0;k<b;k++)h+=`<i class="sq${k<b-r?' used':''}"></i>`;return `<span class="sqs">${h}</span>`};
+const chip=(id,f,o)=>{const p=P[id-1],t=o.tag&&f.tg&&f.tg[id];
+ return `<div class="pw">${t?`<span class="tag ${t[0]}">${t[1]}</span>`:'<span class="tagsp"></span>'}<div class="pc${f.fl.includes(id)?' fl':''}${o.first?' first':''}${o.big?' big':''}" style="--c:${COL[(id-1)%8]}"><div class="pn">P${id}</div>${sqs(p.b,f.rem[id-1])}<div class="pr">resta ${f.rem[id-1]} de ${p.b}${o.w&&cfg.age>0?` · espera ${f.wait[id-1]}/${cfg.age}`:''}</div></div></div>`};
+const mini=(p,tx,tg)=>`<div class="pw"><span class="tag ${tg}" style="animation:none">${tx}</span><div class="pc" style="--c:${COL[(p.id-1)%8]}"><div class="pn">P${p.id}</div><div class="pr">ráfaga ${p.b}</div></div></div>`;
+function render(){
+ const f=F[i],last=F.length-1,E=last,r=f.ran,ks=f.m.map(x=>x.k);
+ $('tt').textContent=i==0?'t = 0':`t = ${f.t0} → ${f.t1}`;
+ $('hd').textContent=i==0?'Estado inicial':r==null?'CPU libre':HL[PR.find(k=>ks.includes(k))];
+ $('sl').max=last;$('sl').value=i;$('cnt').textContent=`Paso ${i} de ${last}`;
+ $('first').disabled=$('prev').disabled=i==0;$('next').disabled=i==last;
+ const pend=P.filter(p=>p.a>=f.t1),done=P.filter(p=>f.end[p.id-1]!=null);
+ const QL=['RR · q = '+cfg.q0,'RR · q = '+cfg.q1,'FCFS · sin quantum'];
+ const lanes=QL.map((q,l)=>`<div class="lane l${l}${r!=null&&f.ranL==l?' act':''}"><div class="ll"><b>Q${l}</b><small>${q}</small></div><div class="lq">${f.q[l].map((id,k)=>chip(id,f,{first:k==0,w:l>0,tag:1})).join('')||'<em>vacía</em>'}</div></div>`).join('');
+ let cp='<em>CPU libre: no hay procesos listos.</em>';
+ if(r!=null){const l=f.ranL,qn=l<2?[cfg.q0,cfg.q1][l]:0;let m='<div class="qm">Q2 · FCFS: sin límite de quantum</div>';
+  if(l<2){let b='';for(let k=1;k<=qn;k++)b+=`<i class="${k<=f.ranU?'on':''}"></i>`;m=`<div class="qm">Quantum Q${l}: ${b} ${f.ranU}/${qn}</div>`}
+  cp=chip(r,f,{big:1,tag:f.tg&&f.tg[r]&&f.tg[r][0]=='fin'})+m}
+ $('board').innerHTML=`<div class="sgrid"><div class="card cpubox"><div class="lbl">CPU en este paso</div>${cp}</div><div class="card"><div class="lbl">Colas · el primero de cada fila sale antes</div>${lanes}</div><div class="card done"><div class="lbl">Por llegar</div><div class="lq" style="margin-bottom:12px">${pend.map(p=>mini(p,'llega en t = '+p.a,'new')).join('')||'<em>ninguno</em>'}</div><div class="lbl">Terminados</div><div class="lq">${done.map(p=>mini(p,'fin en t = '+f.end[p.id-1],'fin')).join('')||'<em>ninguno todavía</em>'}</div></div></div>`;
+ $('sw').innerHTML='<b class="h">Qué pasa</b>'+f.m.map(x=>`<p>${x.x}</p>`).join('');
+ const wy=i==0?[]:r==null?['No hay procesos listos: el CPU espera a que llegue el siguiente.']:PR.filter(k=>ks.includes(k)&&WHY[k]).map(k=>WHY[k]);
+ $('sy').innerHTML='<b class="h">Por qué</b>'+(wy.length?wy.map(x=>`<p>${x}</p>`).join(''):'<p>Aquí verás la regla de MLFQ que explica cada paso.</p>');
+ let g='',b='',a='',ar='';
+ for(let k=1;k<=E;k++){const q=F[k],on=k<=i;
+  g+=!on?'<div class="gc empty"></div>':q.ran?`<div class="gc${k==i?' nw':''}" style="background:${COL[(q.ran-1)%8]}">P${q.ran}</div>`:'<div class="gc idle"></div>';
+  b+=on&&q.ran?`<div class="band b${q.ranL}">Q${q.ranL}</div>`:'<div class="band"></div>';a+=`<span>${k%2==0?k:''}</span>`}
+ P.forEach(p=>{if(p.a<E)ar+=`<span style="grid-column:${p.a+1};background:${COL[(p.id-1)%8]}" title="P${p.id} llega en t=${p.a}">${p.id}</span>`});
+ $('gantt').innerHTML=`<div class="gw" style="--n:${E}"><div class="gt1" style="--n:${E}">${g}</div><div class="gt1" style="--n:${E}">${b}</div></div><div class="gt1 ax" style="--n:${E}">${a}</div><div class="gt1 arr" style="--n:${E}">${ar}</div><div class="em">Círculos = llegada de cada proceso</div>`;
+ $('log').innerHTML=F.slice(0,i+1).map((q,k)=>`<div class="${k==i?'cur':''}">${k?`[t=${q.t0}→${q.t1}] `:''}${q.m.map(x=>x.x).join(' ')}</div>`).join('');$('log').scrollTop=1e5;
+ const fin=i==last&&i>0;$('sumc').hidden=!fin;
+ if(fin){let s=0,w=0,rs=0;const rows=P.map(p=>{const rt=p.end-p.a,wt=rt-p.b,re=p.st-p.a;s+=rt;w+=wt;rs+=re;return `<tr><td><b style="color:${COL[(p.id-1)%8]}">P${p.id}</b></td><td>${p.a}</td><td>${p.b}</td><td>${p.end}</td><td>${rt}</td><td>${wt}</td><td>${re}</td></tr>`}).join(''),n=P.length,busy=F.filter(q=>q.ran).length;
+  const kp=(v,l)=>`<div class="kpi"><b>${v}</b><small>${l}</small></div>`;
+  $('sum').innerHTML=`<div class="kpis">${kp((s/n).toFixed(2),'Retorno promedio')}${kp((w/n).toFixed(2),'Espera promedio')}${kp((rs/n).toFixed(2),'Respuesta promedio')}${kp(Math.round(busy/E*100)+'%','CPU ocupada')}</div><table><tr><th>Proc.</th><th>Llegada</th><th>Ráfaga</th><th>Fin</th><th>Retorno</th><th>Espera</th><th>Respuesta</th></tr>${rows}</table><p class="em" style="margin-top:6px">Retorno = fin − llegada · Espera = retorno − ráfaga · Respuesta = primer uso del CPU − llegada</p>`}
+ if(i==last)stop();
+}
+function stop(){clearInterval(timer);timer=null;$('play').textContent='▶ Auto'}
+function go(n){i=Math.max(0,Math.min(F.length-1,n));render()}
+$('next').onclick=()=>{stop();go(i+1)};$('prev').onclick=()=>{stop();go(i-1)};$('first').onclick=()=>{stop();go(0)};
+$('sl').oninput=e=>{stop();go(+e.target.value)};
+$('play').onclick=()=>{if(timer){stop();return}if(i==F.length-1)go(0);$('play').textContent='⏸ Pausa';timer=setInterval(()=>go(i+1),+$('sp').value)};
+$('sp').onchange=()=>{if(timer){stop();$('play').click()}};
+document.onkeydown=e=>{if(/INPUT|SELECT/.test(e.target.tagName))return;if(e.key=='ArrowRight')$('next').click();if(e.key=='ArrowLeft')$('prev').click()};
+
+function fill(c){$('q0').value=c.q0;$('q1').value=c.q1;$('ag').value=c.age;
+ $('pt').innerHTML='<tr><th>Proceso</th><th>Llegada</th><th>Ráfaga</th><th></th></tr>'+c.procs.map((p,k)=>`<tr><td><b style="color:${COL[k%8]}">P${k+1}</b></td><td><input type="number" min="0" max="40" value="${p[0]}"></td><td><input type="number" min="1" max="20" value="${p[1]}"></td><td><button onclick="this.closest('tr').remove();renum()" aria-label="Quitar">✕</button></td></tr>`).join('')}
+function renum(){[...$('pt').rows].slice(1).forEach((r,k)=>r.cells[0].innerHTML=`<b style="color:${COL[k%8]}">P${k+1}</b>`)}
+function read(){const procs=[...$('pt').rows].slice(1).map(r=>[Math.max(0,+r.cells[1].firstChild.value||0),Math.max(1,Math.min(20,+r.cells[2].firstChild.value||1))]);
+ return{procs:procs.length?procs:DEF.procs,q0:Math.max(1,+$('q0').value||2),q1:Math.max(1,+$('q1').value||4),age:Math.max(0,+$('ag').value||0)}}
+function load(c){stop();cfg=c;fill(c);simulate(c);i=0;render()}
+$('add').onclick=()=>{const t=$('pt'),k=t.rows.length-1;if(k>=8)return;const r=t.insertRow();r.innerHTML=`<td></td><td><input type="number" min="0" max="40" value="${k}"></td><td><input type="number" min="1" max="20" value="3"></td><td><button onclick="this.closest('tr').remove();renum()" aria-label="Quitar">✕</button></td>`;renum()};
+$('apply').onclick=()=>{load(read());$('cfgd').open=false};
+$('p1').onclick=()=>load(DEF);$('p2').onclick=()=>load(AGE);
+$('leg').innerHTML='<span>Cuadritos claros = ráfaga que falta</span><span>Teclas ← →</span>';
+load(DEF);
+</script></body></html>
 
